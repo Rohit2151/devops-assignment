@@ -34,9 +34,33 @@ jobs:
         run: |
           IMAGE_TAG=${GITHUB_SHA::8}
           ECR_URL=${{ steps.login-ecr.outputs.registry }}
-          docker build -t $ECR_URL/${{ env.ECR_REPO }}:$IMAGE_TAG .
+
+          # Build with both tags (sha + latest)
+          docker build -t $ECR_URL/${{ env.ECR_REPO }}:$IMAGE_TAG \
+                       -t $ECR_URL/${{ env.ECR_REPO }}:latest .
+
+          # Push both
           docker push $ECR_URL/${{ env.ECR_REPO }}:$IMAGE_TAG
+          docker push $ECR_URL/${{ env.ECR_REPO }}:latest
+
           echo "IMAGE=$ECR_URL/${{ env.ECR_REPO }}:$IMAGE_TAG" >> $GITHUB_ENV
+
+      - name: Cleanup old ECR images (keep 2)
+        run: |
+          IMAGES=$(aws ecr list-images --repository-name ${{ env.ECR_REPO }} \
+            --query 'imageIds[?imageTag!=`latest`].imageTag' \
+            --output text | tr '\t' '\n' | sort -r)
+
+          COUNT=0
+          for img in $IMAGES; do
+            COUNT=$((COUNT+1))
+            if [ $COUNT -gt 2 ]; then
+              echo "Deleting old image tag: $img"
+              aws ecr batch-delete-image \
+                --repository-name ${{ env.ECR_REPO }} \
+                --image-ids imageTag=$img
+            fi
+          done
 
       - name: Get GitHub Runner Public IP
         run: echo "RUNNER_IP=$(curl -s https://checkip.amazonaws.com)" >> $GITHUB_ENV
@@ -67,7 +91,8 @@ jobs:
       - name: Deploy to EC2
         run: |
           ssh stage << EOF
-            aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${IMAGE%/*}
+            aws ecr get-login-password --region ${AWS_REGION} \
+              | docker login --username AWS --password-stdin ${IMAGE%/*}
 
             docker stop ${PROJECT_NAME} || true
             docker rm ${PROJECT_NAME} || true
