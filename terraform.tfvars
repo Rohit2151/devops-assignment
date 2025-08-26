@@ -1,0 +1,5 @@
+aws_region     = "ap-south-1"
+project_name   = "devops-assignment"
+ami_id         = "ami-02d26659fd82cf299"
+instance_type  = "t3.micro"
+key_name       = "assigment"
