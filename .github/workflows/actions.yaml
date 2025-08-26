@@ -97,7 +97,7 @@ jobs:
             docker stop ${PROJECT_NAME} || true
             docker rm ${PROJECT_NAME} || true
             docker pull ${IMAGE}
-            docker run -d --name ${PROJECT_NAME} -p 80:3000 ${IMAGE}
+            docker run -d --name ${PROJECT_NAME} -p 3000:3000 ${IMAGE}
           EOF
 
       - name: Remove GitHub Runner IP from Security Group
